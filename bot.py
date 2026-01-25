@@ -157,5 +157,46 @@ async def clear(ctx, amount=5):
     """Nettoie les messages du salon"""
     await ctx.channel.purge(limit=amount + 1) # +1 pour effacer la commande elle-même
 
+@bot.command()
+async def top(ctx):
+    """Affiche le Top 10 des veilleurs"""
+    # Trie les utilisateurs par XP décroissant
+    sorted_xp = sorted(user_xp.items(), key=lambda item: item[1], reverse=True)
+    top_10 = sorted_xp[:10]
+    
+    embed = discord.Embed(title="🏆 Classement Veille Techno", color=0xf1c40f)
+    desc = ""
+    
+    for i, (uid, xp) in enumerate(top_10, 1):
+        member = ctx.guild.get_member(int(uid))
+        name = member.display_name if member else "Fantôme"
+        lvl = xp // XP_PER_LEVEL
+        
+        medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"#{i}"
+        desc += f"**{medal} {name}** : Niveau {lvl} ({xp} XP)\n"
+    
+    embed.description = desc if desc else "Personne n'a encore d'XP !"
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def sondage(ctx, *, question):
+    """Crée un sondage simple oui/non"""
+    await ctx.message.delete() # Supprime la commande de l'utilisateur
+    embed = discord.Embed(title="📊 Sondage", description=question, color=0x9b59b6)
+    embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
+    
+    msg = await ctx.send(embed=embed)
+    await msg.add_reaction("✅")
+    await msg.add_reaction("❌")
+
+bot.remove_command('help') # On enlève l'aide par défaut moche
+
+@bot.command()
+async def help(ctx):
+    embed = discord.Embed(title="🤖 Guide du Serveur", color=0x3498db)
+    embed.add_field(name="🕵️ Veille Techno", value="Les articles arrivent dans <#CHANNEL_VEILLE_ID>. Clique sur ✅ pour gagner de l'XP !", inline=False)
+    embed.add_field(name="💻 Commandes", value="`!level` : Ton niveau\n`!top` : Le classement\n`!sondage` : Créer un vote", inline=False)
+    await ctx.send(embed=embed)
+
 # Lancement du bot
 bot.run(TOKEN)
