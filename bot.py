@@ -11,6 +11,7 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN") 
 CHANNEL_VEILLE_ID = 1463268390436343808  # ID du salon #veille-techno
 CHANNEL_GENERAL_ID = 1463268249738154119 # ID du salon #général (pour bienvenue et level up)
+CHANNEL_WELCOME_ID = 1465122841753026560
 ROLE_READER_NAME = "Reader"             # Nom exact du rôle
 EMOJI_VALIDATION = "✅"                 # L'emoji à cliquer
 XP_PER_CLICK = 10                       # XP gagnée par article
@@ -68,16 +69,20 @@ async def on_ready():
 async def on_member_join(member):
     print(f"Nouvel arrivant : {member.name}")
     
-    # Attribution du rôle
+    # 1. Attribution du rôle
     role = discord.utils.get(member.guild.roles, name=ROLE_READER_NAME)
     if role:
         await member.add_roles(role)
         print(f"Role {ROLE_READER_NAME} donné à {member.name}.")
     
-    # Message de bienvenue
-    channel = bot.get_channel(CHANNEL_GENERAL_ID)
+    # 2. Message de bienvenue dans le salon #nouveaux
+    # On récupère le salon grâce à son ID précis
+    channel = bot.get_channel(CHANNEL_WELCOME_ID)
+    
     if channel:
-        await channel.send(f"Bienvenue {member.mention} ! 🎓\nTu as reçu le rôle **{ROLE_READER_NAME}**. Va vite voir <#{CHANNEL_VEILLE_ID}> pour commencer ta veille !")
+        await channel.send(f"Bienvenue {member.mention} ! 🎓\nTu as reçu le rôle **{ROLE_READER_NAME}**.\nVa vite voir <#{CHANNEL_VEILLE_ID}> pour commencer ta veille !")
+    else:
+        print(f"❌ Erreur : Impossible de trouver le salon d'accueil (ID: {CHANNEL_WELCOME_ID})")
 
 # --- 2. AUTO-REACTION (Le bot prépare le terrain) ---
 @bot.event
