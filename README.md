@@ -1,0 +1,3 @@
+# veillemanager
+
+Project created automatically.
