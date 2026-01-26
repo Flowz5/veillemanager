@@ -6,6 +6,7 @@ import asyncio
 import random
 from datetime import timedelta
 from dotenv import load_dotenv
+import re
 
 # Charge les variables d'environnement (.env)
 load_dotenv()
@@ -35,7 +36,25 @@ XP_PER_CLICK     = 10          # XP gagnée par réaction
 XP_PER_LEVEL     = 100         # XP nécessaire par niveau
 DATA_FILE        = "xp_data.json" # Fichier de sauvegarde
 # --- Configuration Auto-Modération ---
-BAD_WORDS = ["con", "connard", "merde", "tg", "fdp", "salope", "putain", "abruti", "negro"]
+# --- Configuration Auto-Modération ---
+BAD_WORDS = [
+    # Insultes classiques
+    "merde", "putain", "con", "connard", "connasse", "salope", "pute", 
+    "enculé", "encule", "bâtard", "batard", "salaud", "bouffon", "boloss",
+    "abruti", "débile", "triso", "mongol", "gogol", "idiot",
+    
+    # Abréviations & SMS
+    "tg", "ftg", "fdp", "ntm", "vtff", "ptn",
+    
+    # Sexuel / Vulgaire
+    "bite", "couille", "chatte", "nique", "niquer", "suce", "sucer", 
+    "branleur", "branlette", "trou du cul", "foutre",
+    
+    # Discriminatoire (Racisme, Homophobie...) - Important pour la sécu
+    "negro", "nègre", "negre", "bougnoule", "crouille", "youpin", "raton",
+    "pd", "pédé", "pede", "tarlouze", "fiotte", "gouine", "travelo",
+    "chinetoque", "bamboula", "sale noir", "sale arabe", "sale juif"
+]
 
 # ==========================================
 # 🔧 INITIALISATION DU BOT
@@ -103,7 +122,46 @@ async def on_member_join(member):
 @bot.event
 async def on_message(message):
     """Gère chaque message posté."""
-    # IMPORTANT : Permet aux commandes (!help, !ping) de fonctionner
+    # === 🛡️ AUTO-MODÉRATION (Mode "Intelligent & Pluriels") ===
+    
+    # On prépare la variable qui servira à vérifier si on a censuré quelque chose
+    censored_content = message.content
+    censored = False # Un petit drapeau pour savoir si on a trouvé une insulte
+    cartoon_symbols = "@#$!&%*+?"
+
+    # Fonction pour générer les symboles (garde la longueur du mot, même au pluriel)
+    def generate_censure(match):
+        nonlocal censored
+        censored = True # On lève le drapeau : insulte trouvée !
+        found_word = match.group()
+        return "".join(random.choice(cartoon_symbols) for _ in range(len(found_word)))
+
+    # On boucle sur chaque mot interdit
+    for word in BAD_WORDS:
+        # 🧠 LA MAGIE EST ICI :
+        # \b = limite du mot (évite de censurer 'con' dans 'confiture')
+        # (?:e|s|es)? = accepte optionnellement un 'e', un 's' ou 'es' à la fin
+        pattern = fr'\b{re.escape(word)}(?:e|s|es|x)?\b'
+        
+        # On remplace le mot trouvé par des symboles
+        censored_content = re.sub(pattern, generate_censure, censored_content, flags=re.IGNORECASE)
+
+    # Si le drapeau est levé (donc qu'on a modifié le message)
+    if censored:
+        # 1. On supprime le message original
+        await message.delete()
+        
+        # 2. Le bot reposte le message censuré
+        await message.channel.send(f"📣 **{message.author.display_name}** a dit :\n>>> {censored_content}")
+        
+        # 3. Le warning
+        warning = await message.channel.send(f"⚠️ {message.author.mention}, j'ai censuré ton message. Surveille ton langage !")
+        await asyncio.sleep(5)
+        await warning.delete()
+        
+        return # On arrête tout ici
+    
+    # IMPORTANT : Permet aux commandes de fonctionner
     await bot.process_commands(message)
 
     # Auto-Réaction dans le salon de veille
@@ -396,17 +454,6 @@ async def unlock(ctx):
     """Déverrouille le salon."""
     await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=True)
     await ctx.send("🔓 Salon ouvert.")
-
-# === 🛡️ AUTO-MODÉRATION (Code à insérer au début de on_message) ===
-    message_content_lower = message.content.lower()
-    
-    # On vérifie si un mot de la liste est présent
-    if any(word in message_content_lower.split() for word in BAD_WORDS):
-        await message.delete() # On supprime le message
-        warning = await message.channel.send(f"⚠️ {message.author.mention}, surveille ton langage !")
-        await asyncio.sleep(5)
-        await warning.delete() # On supprime l'avertissement après 5s
-        return # IMPORTANT : On arrête tout ici (pas d'XP, pas de commande)
 
 # ==========================================
 # 🚀 LANCEMENT
