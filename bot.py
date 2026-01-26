@@ -149,12 +149,59 @@ async def on_raw_reaction_add(payload):
 
 @bot.command(name="help")
 async def help_cmd(ctx):
-    """Affiche le menu d'aide complet."""
-    embed = discord.Embed(title="🛡️ Centre de Contrôle - Parabot", description="Liste des commandes disponibles.", color=0x2c3e50)
+    """Affiche le menu d'aide mis à jour."""
     
-    embed.add_field(name="⚖️ Modération & Sécurité", value="`!kick`, `!ban`, `!unban`\n`!mute`, `!unmute`\n`!lock`, `!unlock`, `!clear`", inline=False)
-    embed.add_field(name="🕵️‍♂️ Infos & Analyse", value="`!userinfo @membre` : Fiche membre\n`!serverinfo` : Stats serveur\n`!regles` : Règlement", inline=False)
-    embed.add_field(name="🎭 Fun & Communauté", value="`!8ball <question>` : Boule magique\n`!say <texte>` : Perroquet (Admin)\n`!poll` : Sondage\n`!level`, `!top` : XP", inline=False)
+    embed = discord.Embed(
+        title="🛡️ Centre de Contrôle - Parabot",
+        description="Liste des commandes disponibles.",
+        color=0x2c3e50
+    )
+    
+    # --- NOUVEAU : SECTION COMMUNICATION ---
+    embed.add_field(
+        name="📢 Communication & Admin",
+        value=(
+            "**`!announce <#salon> <Titre|Message>`** : Faire une annonce officielle.\n"
+            "**`!regles`** : Affiche le règlement."
+        ),
+        inline=False
+    )
+    
+    # --- SECTION MODÉRATION ---
+    embed.add_field(
+        name="⚖️ Modération & Sécurité",
+        value=(
+            "**`🛡️ Auto-Mod`** : Actif (Filtre les insultes).\n"
+            "`!kick`, `!ban`, `!unban` : Sanctions.\n"
+            "`!mute`, `!unmute` : Gérer le silence.\n"
+            "`!lock`, `!unlock`, `!clear` : Gérer les salons."
+        ),
+        inline=False
+    )
+
+    # --- SECTION INFOS ---
+    embed.add_field(
+        name="🕵️‍♂️ Infos & Utile",
+        value=(
+            "`!userinfo @membre` : Fiche profil.\n"
+            "`!serverinfo` : Stats du serveur.\n"
+            "`!rappel <temps> <motif>` : Pense-bête."
+        ),
+        inline=False
+    )
+    
+    # --- SECTION FUN ---
+    embed.add_field(
+        name="🎭 Fun & XP",
+        value=(
+            "`!level`, `!top` : Voir son XP.\n"
+            "`!poll <question>` : Sondage.\n"
+            "`!8ball`, `!choice` : Jeux."
+        ),
+        inline=False
+    )
+    
+    embed.set_footer(text=f"Version 2.0 • {ctx.guild.name}")
     
     await ctx.send(embed=embed)
 
