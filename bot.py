@@ -2,6 +2,8 @@ import discord
 from discord.ext import commands
 import json
 import os
+from dotenv import load_dotenv
+import asyncio
 
 load_dotenv()
 
@@ -9,6 +11,10 @@ load_dotenv()
 # ⚙️ CONFIGURATION (À MODIFIER)
 # ==========================================
 TOKEN = os.getenv("DISCORD_TOKEN") 
+if TOKEN is None:
+    print("ERREUR : Le token n'a pas été trouvé !")
+else:
+    TOKEN = TOKEN.strip()  # <--- C'est ça qui sauve la vie ! Enlève les espaces et sauts de ligne
 CHANNEL_VEILLE_ID = 1463268390436343808  # ID du salon #veille-techno
 CHANNEL_GENERAL_ID = 1463268249738154119 # ID du salon #général (pour bienvenue et level up)
 CHANNEL_WELCOME_ID = 1465122841753026560
@@ -157,12 +163,6 @@ async def level(ctx):
     await ctx.send(embed=embed)
 
 @bot.command()
-@commands.has_permissions(manage_messages=True)
-async def clear(ctx, amount=5):
-    """Nettoie les messages du salon"""
-    await ctx.channel.purge(limit=amount + 1) # +1 pour effacer la commande elle-même
-
-@bot.command()
 async def top(ctx):
     """Affiche le Top 10 des veilleurs"""
     # Trie les utilisateurs par XP décroissant
@@ -184,7 +184,7 @@ async def top(ctx):
     await ctx.send(embed=embed)
 
 @bot.command()
-async def sondage(ctx, *, question):
+async def poll(ctx, *, question):
     """Crée un sondage simple oui/non"""
     await ctx.message.delete() # Supprime la commande de l'utilisateur
     embed = discord.Embed(title="📊 Sondage", description=question, color=0x9b59b6)
@@ -196,12 +196,117 @@ async def sondage(ctx, *, question):
 
 bot.remove_command('help') # On enlève l'aide par défaut moche
 
-@bot.command()
-async def help(ctx):
-    embed = discord.Embed(title="🤖 Guide du Serveur", color=0x3498db)
-    embed.add_field(name="🕵️ Veille Techno", value="Les articles arrivent dans <#CHANNEL_VEILLE_ID>. Clique sur ✅ pour gagner de l'XP !", inline=False)
-    embed.add_field(name="💻 Commandes", value="`!level` : Ton niveau\n`!top` : Le classement\n`!sondage` : Créer un vote", inline=False)
+bot.remove_command("help")
+
+@bot.command(name="help")
+async def help_cmd(ctx):
+    """Affiche ce joli menu d'aide."""
+    
+    embed = discord.Embed(
+        title="🤖 Aide du Bot - Commandes",
+        description="Voici la liste des commandes disponibles sur le serveur.",
+        color=0x3498db # Bleu sympa
+    )
+    
+    # --- SECTION ADMIN ---
+    # C'est ici qu'on précise qu'il faut un argument <nombre> pour clear
+    embed.add_field(
+        name="🛡️ Administration",
+        value=(
+            "**`!clear <nombre>`**\nSupprime les X derniers messages.\n"
+            "**`!regles`**\nAffiche le règlement (Admin uniquement)."
+        ),
+        inline=False
+    )
+    
+    # --- SECTION XP ---
+    embed.add_field(
+        name="🏆 Niveaux & XP",
+        value=(
+            "**`!level`**\nAffiche ton niveau actuel et ta progression.\n"
+            "**`!top`**\nAffiche le classement des 10 meilleurs membres."
+        ),
+        inline=False
+    )
+    
+    # --- SECTION DIVERS / SONDAGE ---
+    # On précise bien <question> pour le poll
+    embed.add_field(
+        name="🎉 Animation",
+        value=(
+            "**`!poll <question>`**\nLance un sondage Oui/Non.\n*Ex: !poll On fait une pause ?*"
+        ),
+        inline=False
+    )
+    
+    embed.set_footer(text="Bot développé avec ❤️ sur Docker/Fedora")
+    
     await ctx.send(embed=embed)
+
+# ==========================================
+# 📜 COMMANDE RÈGLEMENT
+# ==========================================
+@bot.command(name="regles")
+@commands.has_permissions(administrator=True) # Sécurité : Seul un admin peut lancer ça
+async def regles(ctx):
+    """Poste le règlement dans le salon actuel."""
+    
+    # 1. On supprime le message de la commande "!regles" pour laisser le chat propre
+    await ctx.message.delete()
+
+    # 2. Création de l'Embed (le joli encadré)
+    embed = discord.Embed(
+        title="📜 RÈGLEMENT DU SERVEUR",
+        description="Bienvenue ! Pour que la communauté reste agréable, merci de respecter ces quelques règles.",
+        color=0xe74c3c # Rouge
+    )
+
+    # 3. Ajout des règles (Tu peux modifier le texte ici !)
+    embed.add_field(
+        name="1️⃣ • Respect & Courtoisie",
+        value="Soyez respectueux envers les autres membres. Aucune insulte, propos raciste, homophobe ou haineux ne sera toléré.",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="2️⃣ • Pas de Spam / Pub",
+        value="Évitez le flood inutile. La publicité pour d'autres serveurs ou services est interdite sans accord du staff.",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="3️⃣ • Contenu approprié",
+        value="Pas de contenu NSFW, gore ou choquant. Ce serveur est ouvert à tous.",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="4️⃣ • Veille Techno",
+        value="Le salon veille est réservé aux articles tech. Utilisez les réactions pour gagner de l'XP !",
+        inline=False
+    )
+
+    embed.set_footer(text="L'équipe de modération • Tout manquement sera sanctionné.")
+    
+    # 4. Envoi du message
+    await ctx.send(embed=embed)
+
+@bot.command(name="clear")
+@commands.has_permissions(manage_messages=True)
+async def clear(ctx, amount: int):
+    """Supprime un nombre donné de messages."""
+    await ctx.channel.purge(limit=amount + 1) # +1 pour supprimer aussi la commande !clear
+    
+    # Petit message de confirmation qui s'efface tout seul après 3 secondes
+    msg = await ctx.send(f"🧹 J'ai supprimé {amount} messages.")
+    await asyncio.sleep(3)
+    await msg.delete()
+
+@clear.error
+async def clear_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("⛔ Tu n'as pas la permission de gérer les messages.")
+
 
 # Lancement du bot
 bot.run(TOKEN)
