@@ -185,7 +185,6 @@ async def help_cmd(ctx):
         value=(
             "`!userinfo @membre` : Fiche profil.\n"
             "`!serverinfo` : Stats du serveur.\n"
-            "`!rappel <temps> <motif>` : Pense-bête."
         ),
         inline=False
     )
@@ -196,7 +195,7 @@ async def help_cmd(ctx):
         value=(
             "`!level`, `!top` : Voir son XP.\n"
             "`!poll <question>` : Sondage.\n"
-            "`!8ball`, `!choice` : Jeux."
+            "`!8ball` : Jeux."
         ),
         inline=False
     )
