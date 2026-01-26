@@ -4,6 +4,7 @@ import json
 import os
 from dotenv import load_dotenv
 import asyncio
+from datetime import timedelta # <--- AJOUTE ÇA TOUT EN HAUT AVEC LES AUTRES IMPORTS
 
 load_dotenv()
 
@@ -194,52 +195,61 @@ async def poll(ctx, *, question):
     await msg.add_reaction("✅")
     await msg.add_reaction("❌")
 
-bot.remove_command('help') # On enlève l'aide par défaut moche
 
 bot.remove_command("help")
 
+# ==========================================
+# ℹ️ MENU D'AIDE (MIS À JOUR)
+# ==========================================
+
 @bot.command(name="help")
 async def help_cmd(ctx):
-    """Affiche ce joli menu d'aide."""
+    """Affiche le menu d'aide complet."""
     
     embed = discord.Embed(
-        title="🤖 Aide du Bot - Commandes",
-        description="Voici la liste des commandes disponibles sur le serveur.",
-        color=0x3498db # Bleu sympa
+        title="🛡️ Centre de Contrôle - Parabot",
+        description="Liste des commandes disponibles pour la gestion du serveur.",
+        color=0x2c3e50 # Bleu nuit "Admin"
     )
     
-    # --- SECTION ADMIN ---
-    # C'est ici qu'on précise qu'il faut un argument <nombre> pour clear
+    # --- SECTION MODÉRATION ---
     embed.add_field(
-        name="🛡️ Administration",
+        name="⚖️ Modération & Sécurité",
         value=(
-            "**`!clear <nombre>`**\nSupprime les X derniers messages.\n"
-            "**`!regles`**\nAffiche le règlement (Admin uniquement)."
+            "**`!kick @membre <raison>`** : Expulse un membre.\n"
+            "**`!ban @membre <raison>`** : Bannit un membre.\n"
+            "**`!unban <Pseudo#0000>`** : Débannit un utilisateur.\n"
+            "**`!mute @membre <min> <raison>`** : Rend muet (Timeout).\n"
+            "**`!unmute @membre`** : Rend la parole.\n"
+            "**`!lock` / `!unlock`** : Verrouille/Ouvre le salon actuel.\n"
+            "**`!clear <nombre>`** : Supprime les messages récents."
+        ),
+        inline=False
+    )
+
+    # --- SECTION INFOS & UTILITAIRES ---
+    embed.add_field(
+        name="🕵️‍♂️ Infos & Analyse",
+        value=(
+            "**`!userinfo @membre`** : Affiche la fiche complète (Dates, Rôles...).\n"
+            "**`!status`** : État de santé du serveur (CPU/RAM).\n"
+            "**`!regles`** : Affiche le règlement (Admin seulement)."
         ),
         inline=False
     )
     
-    # --- SECTION XP ---
+    # --- SECTION XP & COMMUNAUTÉ ---
     embed.add_field(
-        name="🏆 Niveaux & XP",
+        name="🏆 Vie du Serveur",
         value=(
-            "**`!level`**\nAffiche ton niveau actuel et ta progression.\n"
-            "**`!top`**\nAffiche le classement des 10 meilleurs membres."
+            "**`!level`** : Voir ton niveau et ton XP.\n"
+            "**`!top`** : Voir le classement des meilleurs lecteurs.\n"
+            "**`!poll <question>`** : Lancer un sondage."
         ),
         inline=False
     )
     
-    # --- SECTION DIVERS / SONDAGE ---
-    # On précise bien <question> pour le poll
-    embed.add_field(
-        name="🎉 Animation",
-        value=(
-            "**`!poll <question>`**\nLance un sondage Oui/Non.\n*Ex: !poll On fait une pause ?*"
-        ),
-        inline=False
-    )
-    
-    embed.set_footer(text="Bot développé avec ❤️ sur Docker/Fedora")
+    embed.set_footer(text="Parabot System • Déployé sur Fedora Linux")
     
     await ctx.send(embed=embed)
 
@@ -307,6 +317,132 @@ async def clear_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("⛔ Tu n'as pas la permission de gérer les messages.")
 
+
+# ==========================================
+# 🛡️ COMMANDES DE MODÉRATION (KICK / BAN)
+# ==========================================
+
+@bot.command(name="kick")
+@commands.has_permissions(kick_members=True)
+async def kick(ctx, member: discord.Member, *, reason="Aucune raison fournie"):
+    """Expulse un membre du serveur."""
+    try:
+        await member.kick(reason=reason)
+        embed = discord.Embed(description=f"👢 **{member.name}** a été expulsé.\n**Raison :** {reason}", color=0xe67e22)
+        await ctx.send(embed=embed)
+    except Exception as e:
+        await ctx.send(f"❌ Je ne peux pas expulser ce membre. (Vérifie mes droits et ma position dans les rôles).")
+
+@bot.command(name="ban")
+@commands.has_permissions(ban_members=True)
+async def ban(ctx, member: discord.Member, *, reason="Aucune raison fournie"):
+    """Bannit un membre définitivement."""
+    try:
+        await member.ban(reason=reason)
+        embed = discord.Embed(description=f"🔨 **{member.name}** a été BANNIS.\n**Raison :** {reason}", color=0xff0000)
+        await ctx.send(embed=embed)
+    except Exception as e:
+        await ctx.send(f"❌ Impossible de bannir ce membre.")
+
+@bot.command(name="unban")
+@commands.has_permissions(ban_members=True)
+async def unban(ctx, *, user_input):
+    """Débannit un utilisateur (Pseudo#Tag ou ID)."""
+    banned_users = await ctx.guild.bans()
+    
+    # On cherche dans la liste des bannis
+    for ban_entry in banned_users:
+        user = ban_entry.user
+        
+        # On compare le nom ou l'ID (en string)
+        if (user.name + "#" + user.discriminator == user_input) or (str(user.id) == user_input):
+            await ctx.guild.unban(user)
+            await ctx.send(f"✅ **{user.name}** a été débanni.")
+            return
+            
+    await ctx.send(f"❌ Utilisateur '{user_input}' introuvable dans la liste des bannis.")
+
+# ==========================================
+# 🤐 MUTE / TIMEOUT
+# ==========================================
+
+@bot.command(name="mute")
+@commands.has_permissions(moderate_members=True)
+async def mute(ctx, member: discord.Member, minutes: int, *, reason="Comportement"):
+    """Rend un membre muet pour X minutes."""
+    
+    # On applique le Timeout via l'API Discord
+    duration = timedelta(minutes=minutes)
+    await member.timeout(duration, reason=reason)
+    
+    embed = discord.Embed(description=f"🤐 **{member.name}** a été rendu muet pour **{minutes} minutes**.\n**Raison :** {reason}", color=0x95a5a6)
+    await ctx.send(embed=embed)
+
+@bot.command(name="unmute")
+@commands.has_permissions(moderate_members=True)
+async def unmute(ctx, member: discord.Member):
+    """Rend la parole à un membre."""
+    # Pour enlever le timeout, on met la durée à None
+    await member.timeout(None)
+    await ctx.send(f"🔊 **{member.name}** peut parler à nouveau.")
+
+# ==========================================
+# 🔒 GESTION DES SALONS (LOCKDOWN)
+# ==========================================
+
+@bot.command(name="lock")
+@commands.has_permissions(manage_channels=True)
+async def lock(ctx):
+    """Verrouille le salon actuel (Plus personne ne peut écrire)."""
+    await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=False)
+    await ctx.send("🔒 **Ce salon a été verrouillé par la modération.**")
+
+@bot.command(name="unlock")
+@commands.has_permissions(manage_channels=True)
+async def unlock(ctx):
+    """Déverrouille le salon."""
+    await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=True)
+    await ctx.send("🔓 **Le salon est réouvert.**")
+
+# ==========================================
+# 🕵️‍♂️ INFO UTILISATEUR (Userinfo)
+# ==========================================
+
+@bot.command(name="userinfo")
+async def userinfo(ctx, member: discord.Member = None):
+    """Affiche les informations détaillées d'un membre."""
+    # Si aucun membre n'est précisé, on prend l'auteur de la commande
+    member = member or ctx.author
+    
+    # Mise en forme des dates (Jour/Mois/Année Heure:Minute)
+    created_at = member.created_at.strftime("%d/%m/%Y à %H:%M")
+    joined_at = member.joined_at.strftime("%d/%m/%Y à %H:%M")
+    
+    # Liste des rôles (on retire le @everyone qui ne sert à rien)
+    roles = [role.mention for role in member.roles if role.name != "@everyone"]
+    roles_str = " ".join(roles) if roles else "Aucun rôle"
+    
+    # On crée l'encadré (Embed)
+    embed = discord.Embed(title=f"👤 Fiche de {member.name}", color=member.color)
+    
+    # L'image de profil en haut à droite
+    if member.avatar:
+        embed.set_thumbnail(url=member.avatar.url)
+    
+    embed.add_field(name="🆔 ID", value=member.id, inline=True)
+    embed.add_field(name="🏷️ Surnom", value=member.display_name, inline=True)
+    
+    # C'est ici que tu repères les raiders 👇
+    embed.add_field(name="📅 Compte créé le", value=created_at, inline=False)
+    embed.add_field(name="📥 A rejoint le", value=joined_at, inline=False)
+    
+    embed.add_field(name="🎭 Rôles", value=roles_str, inline=False)
+    
+    # Petit footer pour savoir si c'est un bot ou un humain
+    bot_status = "🤖 C'est un Bot" if member.bot else "👤 C'est un Humain"
+    embed.set_footer(text=f"{bot_status} • Demandé par {ctx.author.name}")
+    
+    await ctx.send(embed=embed)
 
 # Lancement du bot
 bot.run(TOKEN)
