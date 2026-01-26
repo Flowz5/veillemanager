@@ -34,6 +34,8 @@ EMOJI_VALIDATION = "✅"        # Emoji pour valider la veille
 XP_PER_CLICK     = 10          # XP gagnée par réaction
 XP_PER_LEVEL     = 100         # XP nécessaire par niveau
 DATA_FILE        = "xp_data.json" # Fichier de sauvegarde
+# --- Configuration Auto-Modération ---
+BAD_WORDS = ["con", "connard", "merde", "tg", "fdp", "salope", "putain", "abruti", "negro"]
 
 # ==========================================
 # 🔧 INITIALISATION DU BOT
@@ -196,6 +198,27 @@ async def regles(ctx):
     embed.add_field(name="3️⃣ • Veille", value="Le salon veille est réservé à la Tech.", inline=False)
     await ctx.send(embed=embed)
 
+@bot.command(name="announce")
+@commands.has_permissions(administrator=True)
+async def announce(ctx, channel: discord.TextChannel, *, content: str):
+    """Envoie une annonce officielle (Ex: !announce #general Titre | Message)."""
+    # On sépare le titre du message avec le caractère "|"
+    if "|" in content:
+        title, text = content.split("|", 1)
+    else:
+        title = "📢 Annonce Officielle"
+        text = content
+
+    embed = discord.Embed(title=title.strip(), description=text.strip(), color=0xe74c3c)
+    embed.set_footer(text=f"Par l'équipe de modération • {ctx.guild.name}")
+    
+    # Ajoute le logo du serveur si disponible
+    if ctx.guild.icon: 
+        embed.set_thumbnail(url=ctx.guild.icon.url)
+
+    await channel.send(embed=embed)
+    await ctx.send(f"✅ Annonce envoyée dans {channel.mention} !")
+
 # ==========================================
 # 🏆 COMMANDES : COMMUNAUTÉ & XP
 # ==========================================
@@ -327,6 +350,17 @@ async def unlock(ctx):
     """Déverrouille le salon."""
     await ctx.channel.set_permissions(ctx.guild.default_role, send_messages=True)
     await ctx.send("🔓 Salon ouvert.")
+
+# === 🛡️ AUTO-MODÉRATION (Code à insérer au début de on_message) ===
+    message_content_lower = message.content.lower()
+    
+    # On vérifie si un mot de la liste est présent
+    if any(word in message_content_lower.split() for word in BAD_WORDS):
+        await message.delete() # On supprime le message
+        warning = await message.channel.send(f"⚠️ {message.author.mention}, surveille ton langage !")
+        await asyncio.sleep(5)
+        await warning.delete() # On supprime l'avertissement après 5s
+        return # IMPORTANT : On arrête tout ici (pas d'XP, pas de commande)
 
 # ==========================================
 # 🚀 LANCEMENT
