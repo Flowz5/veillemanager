@@ -232,7 +232,6 @@ async def help_cmd(ctx):
         name="🕵️‍♂️ Infos & Analyse",
         value=(
             "**`!userinfo @membre`** : Affiche la fiche complète (Dates, Rôles...).\n"
-            "**`!status`** : État de santé du serveur (CPU/RAM).\n"
             "**`!regles`** : Affiche le règlement (Admin seulement)."
         ),
         inline=False

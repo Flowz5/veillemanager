@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  # --- Service N8N (Cerveau) ---
+  n8n:
+    image: n8nio/n8n
+    container_name: n8n
+    restart: unless-stopped      # Redémarre tout seul si ton PC reboot
+    network_mode: "host"         # LA solution Fedora (utilise le réseau du PC directement)
+    volumes:
+      - ~/.n8n:/home/node/.n8n   # Sauvegarde tes workflows sur ton disque
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+
+  # --- Service Bot Discord (Si tu veux le lancer en même temps) ---
+  bot:
+    build: .
+    container_name: bot-discord
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./xp_data.json:/app/xp_data.json # Sauvegarde l'XP
