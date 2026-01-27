@@ -5,19 +5,22 @@ services:
   n8n:
     image: n8nio/n8n
     container_name: n8n
-    restart: unless-stopped      # Redémarre tout seul si ton PC reboot
-    network_mode: "host"         # LA solution Fedora (utilise le réseau du PC directement)
+    restart: unless-stopped
+    network_mode: "host"
     volumes:
-      - ~/.n8n:/home/node/.n8n   # Sauvegarde tes workflows sur ton disque
+      - ~/.n8n:/home/node/.n8n
     environment:
       - N8N_HOST=localhost
       - N8N_PORT=5678
 
-  # --- Service Bot Discord (Si tu veux le lancer en même temps) ---
+  # --- Service Bot Discord ---
   bot:
     build: .
     container_name: bot-discord
     restart: unless-stopped
     env_file: .env
     volumes:
-      - ./xp_data.json:/app/xp_data.json # Sauvegarde l'XP
+      # 1. Sauvegarde de l'XP
+      - ./xp_data.json:/app/xp_data.json
+      # 2. Le PONT pour ton Scraper (C'est ici qu'il fallait l'ajouter)
+      - /home/leo/Projets/Python/VeilleTechScraper:/app/external_scraper

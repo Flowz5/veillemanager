@@ -207,7 +207,7 @@ async def on_raw_reaction_add(payload):
 
 @bot.command(name="help")
 async def help_cmd(ctx):
-    """Affiche le menu d'aide mis à jour."""
+    """Affiche le menu d'aide mis à jour avec la commande Pull."""
     
     embed = discord.Embed(
         title="🛡️ Centre de Contrôle - Parabot",
@@ -215,11 +215,12 @@ async def help_cmd(ctx):
         color=0x2c3e50
     )
     
-    # --- NOUVEAU : SECTION COMMUNICATION ---
+    # --- SECTION COMMUNICATION & ADMIN ---
     embed.add_field(
         name="📢 Communication & Admin",
         value=(
             "**`!announce <#salon> <Titre|Message>`** : Faire une annonce officielle.\n"
+            "**`!pull`** : 🔄 Lancer le scraper (Veille Techno).\n"  # <--- AJOUTÉ ICI
             "**`!regles`** : Affiche le règlement."
         ),
         inline=False
@@ -258,7 +259,7 @@ async def help_cmd(ctx):
         inline=False
     )
     
-    embed.set_footer(text=f"Version 2.0 • {ctx.guild.name}")
+    embed.set_footer(text=f"Version 2.1 • {ctx.guild.name}")
     
     await ctx.send(embed=embed)
 
@@ -322,6 +323,46 @@ async def announce(ctx, channel: discord.TextChannel, *, content: str):
 
     await channel.send(embed=embed)
     await ctx.send(f"✅ Annonce envoyée dans {channel.mention} !")
+
+import subprocess # <--- A AJOUTER EN HAUT AVEC LES IMPORTS
+
+# ...
+
+@bot.command(name="pull")
+@commands.has_permissions(administrator=True)
+async def pull(ctx):
+    """Lance le script de scraping externe."""
+    status_msg = await ctx.send("🕵️‍♂️ **Lancement du Scraper...**")
+    
+    try:
+        # Le chemin INTERNE au conteneur (défini dans docker-compose)
+        script_path = "/app/external_scraper/scraper.py"
+        
+        # On exécute le script comme si on tapait "python scraper.py" dans le terminal
+        # capture_output=True permet de récupérer ce que le script affiche (print)
+        result = subprocess.run(
+            ["python", script_path], 
+            capture_output=True, 
+            text=True, 
+            check=True
+        )
+        
+        # Si tout s'est bien passé
+        await status_msg.edit(content=f"✅ **Scraping terminé avec succès !**")
+        
+        # Optionnel : Afficher les logs du script (ce qu'il a 'print')
+        if result.stdout:
+            # On coupe si c'est trop long pour Discord (max 2000 chars)
+            log_output = result.stdout[:1900] 
+            await ctx.send(f"📄 **Logs du scraper :**\n```{log_output}```")
+
+    except subprocess.CalledProcessError as e:
+        # Si le script a planté
+        await status_msg.edit(content=f"❌ **Le script a planté !**")
+        await ctx.send(f"⚠️ Erreur :\n```{e.stderr}```")
+        
+    except FileNotFoundError:
+        await status_msg.edit(content="❌ **Erreur :** Je ne trouve pas le fichier `scraper.py` via le volume Docker.")
 
 # ==========================================
 # 🏆 COMMANDES : COMMUNAUTÉ & XP
