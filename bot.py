@@ -29,6 +29,7 @@ TOKEN = TOKEN.strip()
 CHANNEL_VEILLE_ID    = 1463268390436343808
 CHANNEL_GENERAL_ID   = 1463268249738154119
 CHANNEL_WELCOME_ID   = 1465122841753026560
+CHANNEL_LOGS_ID      = 1465804036270719159
 
 # --- Gameplay & Rôles ---
 ROLE_READER_NAME = "Reader"
@@ -138,7 +139,22 @@ async def on_message(message):
         censored_content = re.sub(pattern, generate_censure, censored_content, flags=re.IGNORECASE)
 
     if censored:
-        await message.delete()
+        # 👇 DÉBUT DU LOG (Mouchard) 👇
+        log_channel = bot.get_channel(CHANNEL_LOGS_ID)
+        if log_channel:
+            embed_log = discord.Embed(title="🚨 Insulte Censurée", color=0xff0000)
+            embed_log.add_field(name="👤 Auteur", value=f"{message.author.mention} (`{message.author.id}`)", inline=True)
+            embed_log.add_field(name="📍 Salon", value=message.channel.mention, inline=True)
+            embed_log.add_field(name="🤬 Contenu Original", value=f"{message.content}", inline=False)
+            embed_log.set_footer(text=f"Date : {message.created_at.strftime('%d/%m/%Y %H:%M')}")
+            await log_channel.send(embed=embed_log)
+        # 👆 FIN DU LOG 👆
+
+        try:
+            await message.delete()
+        except discord.NotFound:
+            pass # Si le message a déjà été supprimé
+            
         await message.channel.send(f"📣 **{message.author.display_name}** a dit :\n>>> {censored_content}")
         warning = await message.channel.send(f"⚠️ {message.author.mention}, surveille ton langage !")
         await asyncio.sleep(5)
