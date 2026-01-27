@@ -108,7 +108,7 @@ async def on_ready():
     user_xp = load_xp()
     print(f'✅ Bot connecté : {bot.user}')
     print(f'📊 XP chargée pour {len(user_xp)} utilisateurs.')
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="du Lofi ☕"))
+    await bot.change_presence(activity=discord.Streaming(name="Lofi Girl ☕", url="https://www.twitch.tv/lofigirl"))
 
 @bot.event
 async def on_member_join(member):
