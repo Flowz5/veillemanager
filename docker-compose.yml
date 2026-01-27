@@ -23,3 +23,4 @@ services:
     volumes:
       - ./xp_data.json:/app/xp_data.json
       - /home/leo/Projets/Python/VeilleTechScraper:/app/external_scraper
+      - ./warns.json:/app/warns.json
