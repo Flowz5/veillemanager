@@ -1,12 +1,12 @@
 version: '3.8'
 
 services:
-  # --- Service N8N (Cerveau) ---
+  # --- Service N8N ---
   n8n:
     image: n8nio/n8n
     container_name: n8n
     restart: unless-stopped
-    network_mode: "host"
+    network_mode: "host" # Il est déjà là pour n8n
     volumes:
       - ~/.n8n:/home/node/.n8n
     environment:
@@ -18,9 +18,8 @@ services:
     build: .
     container_name: bot-discord
     restart: unless-stopped
+    network_mode: "host" # 👈 AJOUTE CETTE LIGNE ICI !
     env_file: .env
     volumes:
-      # 1. Sauvegarde de l'XP
       - ./xp_data.json:/app/xp_data.json
-      # 2. Le PONT pour ton Scraper (C'est ici qu'il fallait l'ajouter)
       - /home/leo/Projets/Python/VeilleTechScraper:/app/external_scraper
