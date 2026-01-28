@@ -10,6 +10,7 @@ import re
 import mysql.connector
 import csv
 import subprocess
+import aiohttp
 
 # Charge les variables d'environnement
 load_dotenv()
@@ -30,6 +31,8 @@ CHANNEL_VEILLE_ID    = 1463268390436343808
 CHANNEL_GENERAL_ID   = 1463268249738154119
 CHANNEL_WELCOME_ID   = 1465122841753026560
 CHANNEL_LOGS_ID      = 1465804036270719159
+CHANNEL_ALERTS_ID    = 1465971729947037762
+CHANNEL_SUGGESTIONS_ID = 1465976916703187067
 
 # --- Gameplay & Rôles ---
 ROLE_READER_NAME = "Reader"
@@ -140,7 +143,7 @@ async def on_message(message):
 
     if censored:
         # 👇 DÉBUT DU LOG (Mouchard) 👇
-        log_channel = bot.get_channel(CHANNEL_LOGS_ID)
+        log_channel = bot.get_channel(CHANNEL_ALERTS_ID)
         if log_channel:
             embed_log = discord.Embed(title="🚨 Insulte Censurée", color=0xff0000)
             embed_log.add_field(name="👤 Auteur", value=f"{message.author.mention} (`{message.author.id}`)", inline=True)
@@ -193,6 +196,52 @@ async def on_raw_reaction_add(payload):
                 if member:
                      await channel.send(f"🎉 **LEVEL UP !** {member.mention} passe **Niveau {new_level}** ! 🧠")
 
+@bot.event
+async def on_message_delete(message):
+    """Log quand un message est supprimé (Sauf si c'est une insulte)."""
+    # 1. On ignore les messages du bot lui-même
+    if message.author.bot:
+        return
+
+    for word in BAD_WORDS:
+        pattern = fr'\b{re.escape(word)}(?:e|s|es|x)?\b'
+        if re.search(pattern, message.content, flags=re.IGNORECASE):
+            return # On quitte la fonction, pas de log général !
+
+    # 3. Si ce n'est pas une insulte, on envoie le log dans #logs-serveur
+    log_channel = bot.get_channel(CHANNEL_LOGS_ID)
+    if log_channel:
+        embed = discord.Embed(title="🗑️ Message Supprimé", color=0xe74c3c)
+        embed.add_field(name="Auteur", value=f"{message.author.mention}", inline=True)
+        embed.add_field(name="Salon", value=message.channel.mention, inline=True)
+        
+        if message.content:
+            embed.add_field(name="Contenu", value=message.content, inline=False)
+        else:
+            embed.add_field(name="Contenu", value="*(Image ou fichier)*", inline=False)
+            
+        embed.set_footer(text=f"ID: {message.id}")
+        await log_channel.send(embed=embed)
+
+@bot.event
+async def on_message_edit(before, after):
+    """Log quand un message est modifié."""
+    if before.author.bot: return
+    if before.content == after.content: return # Ignore si c'est juste un embed qui charge
+
+    log_channel = bot.get_channel(CHANNEL_LOGS_ID)
+    if log_channel:
+        embed = discord.Embed(title="✏️ Message Modifié", color=0xf1c40f)
+        embed.add_field(name="Auteur", value=f"{before.author.mention}", inline=True)
+        embed.add_field(name="Salon", value=before.channel.mention, inline=True)
+        embed.add_field(name="Avant", value=before.content, inline=False)
+        embed.add_field(name="Après", value=after.content, inline=False)
+        
+        # Lien pour aller directement au message
+        embed.add_field(name="Lien", value=f"[Aller au message]({after.jump_url})", inline=False)
+        
+        await log_channel.send(embed=embed)
+
 # ==========================================
 # ℹ️ COMMANDES : INFO & ADMIN
 # ==========================================
@@ -210,10 +259,10 @@ async def help_cmd(ctx):
     embed.add_field(
         name="📢 Communication & Admin",
         value=(
-            "**`!announce <#salon> <Titre|Message>`** : Faire une annonce.\n"
-            "**`!pull`** : 🔄 Lancer le scraper (Veille).\n"
-            "**`!export`** : 💾 Télécharger la BDD (CSV).\n"
-            "**`!regles`** : Affiche le règlement."
+            "`!announce <#salon> <Titre|Message>` : Faire une annonce.\n"
+            "`!pull` : 🔄 Lancer le scraper (Veille).\n"
+            "`!export` : 💾 Télécharger la BDD (CSV).\n"
+            "`!regles` : Affiche le règlement."
         ),
         inline=False
     )
@@ -231,30 +280,31 @@ async def help_cmd(ctx):
         inline=False
     )
 
-    # --- SECTION INFOS ---
+    # --- SECTION INFOS & DEV ---
     embed.add_field(
-        name="🕵️‍♂️ Infos & Veille",
+        name="🕵️‍♂️ Infos, Veille & Dev",
         value=(
-            "`!userinfo @membre` : Fiche profil.\n"
-            "`!serverinfo` : Stats du serveur.\n"
+            "`!userinfo`, `!serverinfo` : Infos générales.\n"
             "`!search <mot>` : 🔎 Chercher un article.\n"
-            "`!news` : 📰 Les 5 derniers articles."
+            "`!news` : 📰 Les 5 derniers articles.\n"
+            "`!so <erreur>` : 🧠 Solution StackOverflow."
         ),
         inline=False
     )
     
-    # --- SECTION FUN ---
+    # --- SECTION FUN & COMMUNAUTÉ ---
     embed.add_field(
-        name="🎭 Fun & XP",
+        name="🎭 Fun & Communauté",
         value=(
             "`!level`, `!top` : Voir son XP.\n"
             "`!poll <question>` : Sondage.\n"
-            "`!8ball` : Jeux."
+            "`!8ball` : Jeux.\n"
+            "`!suggest <idée>` : 💡 Boîte à idées."
         ),
         inline=False
     )
     
-    embed.set_footer(text=f"Version 2.2 • {ctx.guild.name}")
+    embed.set_footer(text=f"Version 2.3 • {ctx.guild.name}")
     
     await ctx.send(embed=embed)
 
@@ -297,6 +347,34 @@ async def announce(ctx, channel: discord.TextChannel, *, content: str):
     if ctx.guild.icon: embed.set_thumbnail(url=ctx.guild.icon.url)
     await channel.send(embed=embed)
     await ctx.send(f"✅ Annonce envoyée dans {channel.mention}.")
+
+@bot.command(name="suggest")
+async def suggest(ctx, *, content):
+    """Crée une suggestion dans le salon dédié (ID fixe)."""
+    # 1. On supprime le message de commande pour nettoyer
+    await ctx.message.delete()
+    
+    # 2. On récupère le salon spécifique grâce à l'ID
+    suggest_channel = bot.get_channel(CHANNEL_SUGGESTIONS_ID)
+    
+    if suggest_channel:
+        # Création de l'embed
+        embed = discord.Embed(title="💡 Nouvelle Suggestion", description=content, color=0xf1c40f)
+        embed.set_author(name=ctx.author.display_name, icon_url=ctx.author.avatar.url if ctx.author.avatar else None)
+        embed.set_footer(text="Votez avec les réactions ci-dessous !")
+        
+        # Envoi DANS LE SALON SUGGESTIONS
+        msg = await suggest_channel.send(embed=embed)
+        await msg.add_reaction("✅")
+        await msg.add_reaction("❌")
+        
+        # Petit message de confirmation éphémère là où l'utilisateur a tapé la commande
+        confirm = await ctx.send(f"✅ Ta suggestion a été envoyée dans {suggest_channel.mention} !")
+        await asyncio.sleep(5)
+        await confirm.delete()
+        
+    else:
+        await ctx.send("❌ Erreur : Je ne trouve pas le salon de suggestions (Vérifie l'ID).")
 
 # ==========================================
 # 🕵️‍♂️ COMMANDES : VEILLE & BDD
@@ -383,6 +461,44 @@ async def export_db(ctx):
         os.remove(filename)
     except Exception as e:
         await ctx.send(f"❌ Erreur : `{e}`")
+
+@bot.command(name="so")
+async def stackoverflow(ctx, *, query):
+    """Cherche une solution sur StackOverflow (Ex: !so python list index out of range)."""
+    await ctx.send(f"🔎 Recherche sur StackOverflow pour : **{query}**...")
+    
+    # URL de l'API StackExchange (gratuite)
+    url = f"https://api.stackexchange.com/2.3/search/advanced?order=desc&sort=relevance&q={query}&site=stackoverflow"
+    
+    try:
+        # On utilise aiohttp pour faire la requête de façon asynchrone (ne bloque pas le bot)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                data = await response.json()
+        
+        # Vérification si on a des résultats
+        if not data.get("items"):
+            await ctx.send("❌ Aucun résultat trouvé.")
+            return
+        
+        # On prend le premier résultat (le plus pertinent)
+        top_result = data["items"][0]
+        
+        # Création de la jolie fiche
+        embed = discord.Embed(
+            title=top_result["title"], 
+            url=top_result["link"], 
+            color=0xf48024 # Le orange officiel de StackOverflow
+        )
+        embed.add_field(name="Score", value=str(top_result["score"]), inline=True)
+        embed.add_field(name="Réponses", value=str(top_result["answer_count"]), inline=True)
+        embed.add_field(name="Tags", value=", ".join(top_result.get("tags", [])[:3]), inline=False)
+        embed.set_footer(text="Stack Overflow • For Developers")
+        
+        await ctx.send(embed=embed)
+
+    except Exception as e:
+        await ctx.send(f"⚠️ Erreur lors de la recherche : `{e}`")
 
 # ==========================================
 # ⚖️ COMMANDES : MODÉRATION & WARNS
